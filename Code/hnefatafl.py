@@ -355,11 +355,11 @@ class Board(object):
                      ".....a.....",
                      "x..aaaaa..x"]
 
-        self.colors = {'x': (25, 25, 25),
-                       'a': (186, 169, 85),
-                       'd': (218, 185, 23),
-                       'c': (242, 240, 228),
-                       '.': (250, 236, 163)}
+        self.colors = {'x': (92, 83, 70),
+                       'a': (48, 43, 14),
+                       'd': (57, 62, 65),
+                       'c': (0, 0, 0),
+                       '.': (203, 163, 40)}
 
         self.dim = len(self.grid)
 
@@ -431,7 +431,7 @@ class Attacker(Piece):
         """Inherit from Piece and give attacking piece a color."""
         Piece.__init__(self, x, y)
         pygame.sprite.Sprite.__init__(self, self.groups)
-        self.base_color = (149, 19, 62)
+        self.base_color = (150, 0, 24)
         self.color = self.base_color
 
 
@@ -442,7 +442,7 @@ class Defender(Piece):
         """Inherit from Piece and give attacking piece a color."""
         Piece.__init__(self, x, y)
         pygame.sprite.Sprite.__init__(self, self.groups)
-        self.base_color = (52, 134, 175)
+        self.base_color = (255, 255, 240)
         self.color = self.base_color
 
 
@@ -456,6 +456,6 @@ class King(Defender):
         """
         Defender.__init__(self, x, y)
         pygame.sprite.Sprite.__init__(self, self.groups)
-        self.base_color = (19, 149, 62)
+        self.base_color = (255, 255, 0)
         self.color = self.base_color
         self.special_sqs = True

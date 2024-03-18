@@ -15,6 +15,10 @@ import random
 import numpy as np
 import hnefatafl as tafl
 import tools as tool
+import value_net as vn
+import torch
+import time
+import copy
 
 
 def Simple_heuristic(game_state, defender):
@@ -185,22 +189,21 @@ def do_random_move(move):
             break
 
 
-def run_game_cacd_RL(screen=None):
+def run_game_cacd_RL(screen, attacker_model):
     """Start and run one game of computer vs computer hnefatafl.
 
     TODO: Add description
 
     """
     board = tafl.Board()
+    fake_board = copy.deepcopy(board)
     move = tafl.Move()
     tool.initialize_pieces(board)
-    a_game_states = []
-    a_predicted_scores = []
-    d_game_states = []
-    d_predicted_scores = []
     num_moves = 0
     while 1:
         if screen is not None:
+            tool.update_image(screen, board, "")
+            pygame.display.update()
             for event in pygame.event.get():
                 if event.type == QUIT:
                     sys.exit()
@@ -209,64 +212,44 @@ def run_game_cacd_RL(screen=None):
 
         num_moves += 1
         if num_moves >= 1000:
-            print("Draw game after {} moves".format(num_moves))
-            a_predicted_scores.append(0.0)
-            d_predicted_scores.append(0.0)
-            return a_game_states, a_predicted_scores[1:], d_game_states, d_predicted_scores[
-                                                                         1:]  # i.e. the corrected scores from RL
+            return 0
 
         if move.a_turn:
             # print("Attacker's Turn: Move {}".format(num_moves))
-            # game_state, predicted_score = do_best_move(move, attacker_model)
-            game_state, predicted_score = Hingston_Simple_Agent(move, False)
-            # game_state = do_random_move(move)
-            # predicted_score = (random.random() - 0.5) * 2
-            a_game_states.append(game_state)
-            a_predicted_scores.append(predicted_score)
+            game_state = game_state_to_array_board(fake_board)
+            do_best_move(move, attacker_model, fake_board)
+            tool.update_grid(fake_board)
+            game_state = game_state_to_array_board(fake_board)
         else:
             # print("Defender's Turn: Move {}".format(num_moves))
-            # game_state,predicted_score = do_best_move(move,defender_model)
-            game_state = do_random_move(move)
-            predicted_score = (random.random() - 0.5) * 2
-            d_game_states.append(game_state)
-            d_predicted_scores.append(predicted_score)
+            game_state = game_state_to_array_board(fake_board)
+            do_random_move(move)
+            tool.update_grid(fake_board)
+            game_state = game_state_to_array_board(fake_board)
 
         """Text to display on bottom of game."""
         if move.escaped:
-            print("King escaped! Defenders win!")
-            attacker_outcome = -1.0
-            # print(a_predicted_scores[-1])
-            a_predicted_scores.append(-1.0)
-            d_predicted_scores.append(+1.0)
-            return a_game_states, a_predicted_scores[1:], d_game_states, d_predicted_scores[
-                                                                         1:]  # i.e. the corrected scores from RL
+            return -1
         if move.king_killed:
-            print("King killed! Attackers win!")
-            # print(a_predicted_scores[-1])
-            a_predicted_scores.append(+1.0)
-            d_predicted_scores.append(-1.0)
-            return a_game_states, a_predicted_scores[1:], d_game_states, d_predicted_scores[
-                                                                         1:]  # i.e. the corrected scores from RL
-        if screen is not None:
-            tool.update_image(screen, board, "")
-            pygame.display.update()
+            return 1
 
 
-def do_best_move(move, model):
+def do_best_move(move, model, board):
     """ Function to try all possible moves and select the best according to the model provided
     """
 
-    game_state = game_state_to_array()  # Preserves the current game state
+    game_state = game_state_to_array_board(board)  # Preserves the current game state
 
+    # print(game_state)
+    # print("==============================================================================")
     if move.a_turn:
         pieces = tafl.Attackers
     else:
         pieces = tafl.Defenders
 
-    best_score = -1.0
+    best_score = -99999999999999999999.0
     best_piece = None
     best_move = None
-    best_game_state = None
     # len("N Pieces: ",len(pieces))
     for piece in pieces:
         move.select(piece)  # Move class defines all possible valid moves
@@ -281,13 +264,12 @@ def do_best_move(move, model):
                 temp = game_state[piece.x_tile][piece.y_tile]
                 game_state[piece.x_tile][piece.y_tile] = 0
                 game_state[m[0]][m[1]] = temp
-
                 try:  # model.predict crashed once...
-                    # print(game_state)
-                    score = model.predict(game_state.reshape(1, 11 * 11))[0][0]
+                    tens = torch.from_numpy(game_state).reshape([1, 1, 11, 11])
+                    score = model(tens).detach().numpy()[0]
                 except:
+                    print("Erorr")
                     score = -1.0
-                    # score = random.random()
 
                 if score > best_score:
                     best_score = score
@@ -303,7 +285,7 @@ def do_best_move(move, model):
 
     move.select(best_piece)
     tafl.Current.add(best_piece)
-    # print("Moving piece to: {}".format(pos))
+    # best_piece_copy = copy.deepcopy(best_piece)
     if move.is_valid_move(best_move, tafl.Current.sprites()[0], True):
         if tafl.Current.sprites()[0] in tafl.Kings:
             move.king_escaped(tafl.Kings)
@@ -313,14 +295,6 @@ def do_best_move(move, model):
             move.remove_pieces(tafl.Attackers, tafl.Defenders, tafl.Kings)
         move.end_turn(tafl.Current.sprites()[0])
         tafl.Current.empty()
-        # return best_score,game_state_to_array()
-        # Just do this by hand for efficiency
-        temp = game_state[best_piece.x_tile][best_piece.y_tile]
-        game_state[best_piece.x_tile][best_piece.y_tile] = 0
-        game_state[best_move[0]][best_move[1]] = temp
-
-        # print(game_state,best_score)
-        return game_state, best_score
     else:
         print("ERROR: Efficient move logic failed... Fix!")
         sys.exit(1)
@@ -332,74 +306,37 @@ def game_state_to_array():
     if tafl.Attackers is None or tafl.Defenders is None or tafl.Kings is None:
         print("Game not properly initialized.  Exiting.")
         sys.exit(1)
-    arr = np.zeros((11, 11), dtype=int)
+    arr = np.zeros((11, 11), dtype=np.float32)
 
     for p in tafl.Attackers:
-        arr[p.x_tile][p.y_tile] = '1'
+        arr[p.x_tile][p.y_tile] = 1.0
     for p in tafl.Defenders:
-        arr[p.x_tile][p.y_tile] = '-1'
+        arr[p.x_tile][p.y_tile] = -1.0
     for p in tafl.Kings:
-        arr[p.x_tile][p.y_tile] = '-2'
+        arr[p.x_tile][p.y_tile] = -2.0
 
     return arr
 
 
-def unison_shuffled_copies(a, b):
-    assert len(a) == len(b)
-    p = np.random.permutation(len(a))
-    return a[p], b[p]
-
-
-def smooth_corrected_scores(corrected_scores, num_to_smooth=10):
-    """ Smooth out the lead up to the final state for faster learning
+def game_state_to_array_board(board):
+    """2D Numpy array representation of game state for ML model.
     """
-    num_to_smooth = min(num_to_smooth, len(corrected_scores))
 
-    for i in range(num_to_smooth - 1):
-        corrected_scores[-1 * (i + 2)] = (corrected_scores[-1 * (i + 2)] + corrected_scores[
-            -1 * (i + 1)]) / 2.  # Average
+    arr = np.zeros((11, 11), dtype=np.float32)
+
+    for x in range(board.dim):
+        for y in range(board.dim):
+            if board.grid[x][y] == "a":
+                arr[x][y] = 1.0
+            if board.grid[x][y] == "d":
+                arr[x][y] = -1.0
+            if board.grid[x][y] == "c":
+                arr[x][y] = -2.0
+
+    return arr.transpose()
 
 
 def main():
-    """Main function- initializes screen and starts new games."""
-    interactive = True
-    if interactive:
-        pygame.init()
-        screen = pygame.display.set_mode(tafl.WINDOW_SIZE)
-    else:
-        screen = None
-    tool.initialize_groups()
-
-    # attacker_model = initialize_random_nn_model()
-    # defender_model = initialize_random_nn_model()
-
-    # train = True
-    num_train_games = 0
-    # while train:
-    while num_train_games < 10:
-        num_train_games += 1
-        # play = tafl.run_game(screen)
-        # play = run_game_cacd(screen)
-        # a_game_states,a_corrected_scores, d_game_states,d_corrected_scores = run_game_cacd_RL(attacker_model,defender_model)
-        a_game_states, a_corrected_scores, d_game_states, d_corrected_scores = run_game_cacd_RL(screen)
-        # play = run_game_cacd_RL(attacker_model,defender_model,screen)
-        print("Game finished in {} moves".format(len(a_corrected_scores) + len(d_corrected_scores)))
-        # a_game_states,a_corrected_scores = unison_shuffled_copies(a_game_states,a_corrected_scores)
-        smooth_corrected_scores(a_corrected_scores)
-        # print(len(a_game_states))
-        # print(a_corrected_scores)
-        # print(d_game_states)
-        # print(d_corrected_scores)
-        #attacker_model.fit(np.array(a_game_states).reshape(-1, 11 * 11), np.array(a_corrected_scores), epochs=1,
-                           #batch_size=1, verbose=0)
-        #if num_train_games % 10 == 0:
-            #attacker_model.save('attacker_model_after_{}_games.h5'.format(num_train_games))
-
-        # time.sleep(5)
-        tool.cleanup()
-
-
-def main1():
     """Main function- initializes screen and starts new games."""
     interactive = False
     if interactive:
@@ -408,8 +345,29 @@ def main1():
     else:
         screen = None
     tool.initialize_groups()
-    a_game_states, a_corrected_scores, d_game_states, d_corrected_scores = run_game_cacd_RL(screen)
-    print("Game finished in {} moves".format(len(a_corrected_scores) + len(d_corrected_scores)))
+
+    num_train_games = 0
+    while num_train_games < 10:
+        num_train_games += 1
+        attacker_model = vn.HingstonNetwork()
+        result = run_game_cacd_RL(screen, attacker_model)
+        print(result)
+        tool.cleanup()
+
+
+def main1():
+    """Main function- initializes screen and starts new games."""
+    interactive = True
+    if interactive:
+        pygame.init()
+        screen = pygame.display.set_mode(tafl.WINDOW_SIZE)
+    else:
+        screen = None
+    tool.initialize_groups()
+    attacker_model = vn.HingstonNetwork()
+    result = run_game_cacd_RL(screen, attacker_model)
+    print(result)
+    # print("Game finished in {} moves".format(len(a_corrected_scores) + len(d_corrected_scores)))
     tool.cleanup()
 
 

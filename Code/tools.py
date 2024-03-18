@@ -59,9 +59,9 @@ def initialize_pieces(board):
     Args:
         board (Board): the game board object
     """
-    for y in range(board.dim):
-        for x in range(board.dim):
-            p = board.grid[y][x]
+    for x in range(board.dim):
+        for y in range(board.dim):
+            p = board.grid[x][y]
             if p == "a":
                 tafl.Attacker(x, y)
             elif p == "d":
@@ -103,6 +103,39 @@ def update_image(screen, board, text):
     screen.blit(msg, msgpos)
 
     pygame.display.flip()
+
+
+def update_grid(board):
+    """Create all of the game pieces and put them in groups.
+
+    Note:
+        The board layout from Board class is used for initial placement of
+        pieces.
+
+    Args:
+        board (Board): the game board object
+    """
+    for x in range(board.dim):
+        for y in range(board.dim):
+            l = list(board.grid[x])
+            if (x == 0 and y == 0) or (x == 10 and y == 0) or (x == 10 and y == 0) or (x == 10 and y == 0):
+                l[y] = "x"
+            else:
+                l[y] = "."
+            board.grid[x] = ''.join(l)
+
+    for p in tafl.Attackers:
+        l = list(board.grid[p.x_tile])
+        l[p.y_tile] = "a"
+        board.grid[p.x_tile] = ''.join(l)
+    for p in tafl.Defenders:
+        l = list(board.grid[p.x_tile])
+        l[p.y_tile] = "d"
+        board.grid[p.x_tile] = ''.join(l)
+    for p in tafl.Kings:
+        l = list(board.grid[p.x_tile])
+        l[p.y_tile] = "c"
+        board.grid[p.x_tile] = ''.join(l)
 
 
 def do_random_move(move):
