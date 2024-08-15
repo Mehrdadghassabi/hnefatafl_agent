@@ -4,3 +4,6 @@ according to wikipedia hnefatafl games are a family of ancient Northern European
 3 mode has been implemented 1.human vs huamn 2.computer vs computer 3.human vs computer
 ### next
 trying to implement <a href=https://ieeexplore.ieee.org/abstract/document/4219039> this paper </a>
+
+## game quick look
+![Screenshot from 2024-03-19 02-24-03](https://github.com/user-attachments/assets/a05cccfd-9a26-4ea1-bd59-9a8344ab9f78)
